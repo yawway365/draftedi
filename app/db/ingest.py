@@ -36,7 +36,6 @@ def create_edi_file(file_dict):
         file_dict["file_id"] = file_id
 
         conn.commit()
-        conn.close()
 
     return file_dict
 
