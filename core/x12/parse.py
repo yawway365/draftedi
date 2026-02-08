@@ -65,23 +65,29 @@ def parse_edi_file(raw_bytes, source="manual upload"):
 
     sha256 = hashlib.sha256(raw_bytes).hexdigest()
     # filename = os.path.basename(file_path)
-    filename = 'how do i get name.txt'
+    filename = ''
+    try:
+        filename = raw_bytes.filename
+    except Exception:
+        filename = 'raw text'
+
     processed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     # create edi_files row first
+    edi_file_dict = {
+        "partner_id": None,
+        "interchange_id": None,
+        "processed_at": processed_at,
+        "filename": filename,
+        "file_hash": sha256,
+        "raw_bytes": raw_bytes,
+        "parse_status": "new",
+        "parse_error": None,
+        "processing_state": "new",
+        "source": source,
+    }
     file_row = create_edi_file(
-        {
-            "partner_id": None,
-            "interchange_id": None,
-            "processed_at": processed_at,
-            "filename": filename,
-            "file_hash": sha256,
-            "raw_bytes": raw_bytes,
-            "parse_status": "new",
-            "parse_error": None,
-            "processing_state": "new",
-            "source": source,
-        }
+        edi_file_dict
     )
     file_id = file_row["file_id"]
 
@@ -280,7 +286,7 @@ def parse_edi_file(raw_bytes, source="manual upload"):
             processing_state="parsed",
         )
 
-        return file_id
+        return edi_file_dict
 
     except Exception as e:
         update_edi_file_status(

@@ -35,7 +35,4 @@ async def parse_x12(request: Request, file: UploadFile | None = File(default=Non
         raise HTTPException(status_code=400, detail=f"Parse failed: {e}") from e
 
     # Build an MVP response
-    info = parsed.get("info", [])
-    return {
-        # to be implemented once databases are created and parse_edi_file() can write to them.
-    }
+    return parsed
