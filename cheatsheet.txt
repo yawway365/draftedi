@@ -1,0 +1,30 @@
+SSH USERS
+--------------------
+ssh root@185.211.4.89
+	kljgH-0uoi98&73
+
+ssh jcyaw@185.211.4.89
+	b0g18021
+-------------------
+
+START VENV 
+---------------------------------
+(PC)
+py -m venv venv
+.\venv\Scripts\Activate.ps1
+----------------------------------
+
+Pull and restart website:
+------------------------------
+/var/www/draftedi/deploy.sh
+------------------------------
+
+Edit .env file
+-------------------------
+sudo nano /etc/draftedi/draftedi.env
+--------------------------
+
+Check status
+-------------------------
+systemctl status draftedi --no-pager
+-------------------------

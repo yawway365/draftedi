@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Header, HTTPException, Response, status, Depends
 
 from app.routers.x12 import router as x12_router
+from app.db.schema import create_tables
 
 load_dotenv()
 
@@ -24,7 +25,16 @@ def require_api_key(x_api_key=Header(default=None)):
     if x_api_key != expected:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
+# ---- Open API ----
 app = FastAPI(title=os.getenv('APP_NAME', 'DraftEDI'))
+
+@app.get("/")
+def root():
+    return {"status": "DraftEDI API is live"}
+
+@app.on_event("startup")
+def _startup():
+    create_tables()
 
 @app.get("/health")
 def health():
@@ -66,10 +76,6 @@ def metrics():
         "env": env("ENV", "unknown"),
         "version": env("APP_VERSION", "unknown"),
     }
-
-@app.get("/")
-def root():
-    return {"status": "DraftEDI API is live"}
 
 
 # ---- Protected router (everything in here requires x-api-key) ----
