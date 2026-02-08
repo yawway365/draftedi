@@ -3,7 +3,7 @@
 import os
 import time
 from dotenv import load_dotenv
-from fastapi import FastAPI, APIRouter, Header, HTTPException, Response, status
+from fastapi import FastAPI, APIRouter, Header, HTTPException, Response, status, Depends
 
 load_dotenv()
 
@@ -71,7 +71,7 @@ def root():
 
 
 # ---- Protected router (everything in here requires x-api-key) ----
-protected = APIRouter(prefix="/api", dependencies=[require_api_key])
+protected = APIRouter(prefix="/api", dependencies=[Depends(require_api_key)])
 
 @protected.get("/ping")
 def ping():
