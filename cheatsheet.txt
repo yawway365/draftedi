@@ -28,3 +28,8 @@ Edit .env file
 -------------------------
 sudo nano /etc/draftedi/draftedi.env
 --------------------------
+
+Edit service file
+-------------------------
+sudo nano /etc/systemd/system/draftedi.service
+-------------------------
