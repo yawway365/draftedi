@@ -80,7 +80,6 @@ def create_edi_interchange(interchange_dict):
         interchange_dict["edi_interchange_id"] = edi_interchange_id
 
         conn.commit()
-        conn.close()
 
     return interchange_dict
 
@@ -110,7 +109,6 @@ def create_functional_group(group_dict):
         group_dict["group_id"] = group_id
 
         conn.commit()
-        conn.close()
 
     return group_dict
 
@@ -142,7 +140,6 @@ def create_transaction(tx_dict):
         tx_dict["transaction_id"] = transaction_id
 
         conn.commit()
-        conn.close()
 
     return tx_dict
 
@@ -190,7 +187,6 @@ def lookup_trading_partner_and_interchange(isa_sender_id, isa_receiver_id, sende
             )
 
             row = cursor.fetchone()
-            conn.close()
 
             print(row)
 
@@ -300,7 +296,6 @@ def update_transaction_se_fields(transaction_id: int, segment_count_reported, ra
             (segment_count_reported, raw_se_segment, transaction_id),
         )
         conn.commit()
-        conn.close()
 
 def update_edi_file_status(file_id, parse_status=None, parse_error=None, processing_state=None):
     fields = (
@@ -323,4 +318,3 @@ def update_edi_file_status(file_id, parse_status=None, parse_error=None, process
         """, fields)
 
         conn.commit()
-        conn.close()
