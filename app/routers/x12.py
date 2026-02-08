@@ -14,7 +14,7 @@ async def parse_x12(request: Request, file: UploadFile | None = File(default=Non
     data: bytes
     
     if file is not None:
-        data = open(file, "rb").read()
+        data = await file.read()
     else:
         # Accept raw body
         content_type = (request.headers.get("content-type") or "").lower()
