@@ -1,13 +1,5 @@
 import hashlib
-import os
-import sqlite3
 from datetime import datetime, timezone
-
-from app.db.ingest import insert_segment_with_elements, create_edi_file, create_transaction, lookup_trading_partner_and_interchange, create_edi_interchange, create_functional_group, update_transaction_se_fields, update_edi_file_status
-
-
-TRADING_PARTNERS_DB = "trading_partners.db"
-
 
 # -------------------------
 # Separator detection
@@ -51,7 +43,6 @@ def parse_interchange(x12_text: str):
         "isa_parts": isa_parts,
     }
 
-
 # -------------------------
 # Main parse + populate
 # -------------------------
@@ -65,7 +56,7 @@ def parse_edi_file(raw_bytes, source="manual upload"):
     filename = ''
     try:
         filename = raw_bytes.filename
-    except Exception:
+    except AttributeError:
         filename = 'raw text'
 
     processed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
