@@ -70,22 +70,7 @@ def parse_edi_file(raw_bytes, source="manual upload"):
 
     processed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    db_records = {}
-
-    # create edi_files row first
-    edi_file_dict = {
-        "partner_id": None,
-        "interchange_id": None,
-        "processed_at": processed_at,
-        "filename": filename,
-        "file_hash": sha256,
-        "raw_bytes": raw_bytes,
-        "parse_status": "new",
-        "parse_error": None,
-        "processing_state": "new",
-        "source": source,
-    }
-    db_records['edi_file_dict'] = edi_file_dict
+    
     
 
     sep = parse_interchange(x12_text)
@@ -112,32 +97,37 @@ def parse_edi_file(raw_bytes, source="manual upload"):
     segments = [s.strip() for s in x12_text.split(segment_term)]
     segments = [s for s in segments if s]  # drop empties
 
+    edi_file_dict = {
+        "partner_id": None,
+        "interchange_id": None,
+        "processed_at": processed_at,
+        "filename": filename,
+        "file_hash": sha256,
+        "raw_bytes": raw_bytes,
+        "parse_status": "new",
+        "parse_error": None,
+        "processing_state": "new",
+        "source": source,
+    }
+
+    db_records = {
+        'edi_file_dict': edi_file_dict,
+        'interchange_dict': {},
+        'group_dict': {},
+        'transaction_dict': {},
+        'segments': [],
+    }
+
     current_group_id = None
     current_tx_id = None
     current_tx_pos = 0
-
-    db_records['segments'] = []
-
     for seg in segments:
         parts = seg.split(element_sep)
         seg_id = parts[0].strip() if parts else ""
         seg_elements = parts[1:] if len(parts) > 1 else []
 
         if seg_id == "ISA":
-            # already handled above, but you could store it in segments if desired
-            continue
-
-        if seg_id == "GS":
-            # GS*PO*SENDERGS*RECEIVERGS*20231117*004114*000000001*X*004030
-            functional_id_code = seg_elements[0] if len(seg_elements) > 0 else None
-            gs_sender_id = seg_elements[1] if len(seg_elements) > 1 else None
-            gs_receiver_id = seg_elements[2] if len(seg_elements) > 2 else None
-            group_control_number = seg_elements[5] if len(seg_elements) > 5 else None
-            x12_release = seg_elements[7] if len(seg_elements) > 7 else None
-
-            current_group_id = functional_id_code
-
-            interchange_dict = {
+            db_records['interchange_dict'] = {
                 "file_id": None,
                 "partner_id": None,
                 "interchange_id": None,
@@ -156,9 +146,19 @@ def parse_edi_file(raw_bytes, source="manual upload"):
                 "repetition_sep": repetition_sep,
                 "raw_isa": raw_isa,
             }
-            db_records['interchange_dict'] = interchange_dict
+            continue
 
-            group_dict = {
+        if seg_id == "GS":
+            # GS*PO*SENDERGS*RECEIVERGS*20231117*004114*000000001*X*004030
+            functional_id_code = seg_elements[0] if len(seg_elements) > 0 else None
+            gs_sender_id = seg_elements[1] if len(seg_elements) > 1 else None
+            gs_receiver_id = seg_elements[2] if len(seg_elements) > 2 else None
+            group_control_number = seg_elements[5] if len(seg_elements) > 5 else None
+            x12_release = seg_elements[7] if len(seg_elements) > 7 else None
+
+            current_group_id = functional_id_code
+
+            db_records['group_dict'] = {
                 "edi_interchange_id": None,
                 "functional_id_code": functional_id_code,
                 "gs_sender_id": gs_sender_id,
@@ -167,8 +167,6 @@ def parse_edi_file(raw_bytes, source="manual upload"):
                 "x12_release": x12_release,
                 "raw_gs_segment": seg,
             }
-            db_records['group_dict'] = group_dict
-
             continue
 
         if seg_id == "ST":
@@ -179,9 +177,11 @@ def parse_edi_file(raw_bytes, source="manual upload"):
             transaction_set_id = seg_elements[0] if len(seg_elements) > 0 else None
             control_number = seg_elements[1] if len(seg_elements) > 1 else None
             impl_version = seg_elements[2] if len(seg_elements) > 2 else None
+
+            current_tx_id = transaction_set_id
             
-            transaction_dict = {
-                "group_id": current_group_id,
+            db_records['transaction_dict'] = {
+                "group_id": None,
                 "transaction_set_id": transaction_set_id,
                 "control_number": control_number,
                 "implementation_version": impl_version,
@@ -190,14 +190,8 @@ def parse_edi_file(raw_bytes, source="manual upload"):
                 "raw_se_segment": None,
                 "ack_status": "none",
             }
-            db_records['transaction_dict'] = transaction_dict
-
+            
             current_tx_pos = 0
-
-            # also store the ST segment itself in edi_segments/edi_elements
-            current_tx_pos += 1
-                
-            continue
 
         if seg_id == "SE":
             # SE*21*01403001
@@ -210,18 +204,12 @@ def parse_edi_file(raw_bytes, source="manual upload"):
 
             # store SE segment into segment table
             current_tx_pos += 1
-            insert_segment_with_elements(
-                transaction_id=current_tx_id,
-                position=current_tx_pos,
-                segment_id=seg_id,
-                raw_segment=seg,
-                element_values=seg_elements,
-                component_sep=component_sep,
-                repetition_sep=repetition_sep,
-            )
 
             # update transaction with SE info
-            update_transaction_se_fields(current_tx_id, seg_count, seg)
+            db_records['transaction_dict'] = {
+                "segment_count_reported": seg_count,
+                "raw_se_segment": seg,
+            }
 
             # close tx
             current_tx_id = None
