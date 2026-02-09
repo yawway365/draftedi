@@ -61,9 +61,6 @@ def parse_edi_file(raw_bytes, source="manual upload"):
 
     processed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    
-    
-
     sep = parse_interchange(x12_text)
     element_sep = sep["element_sep"]
     segment_term = sep["segment_term"]
@@ -273,7 +270,7 @@ def parse_edi_file(raw_bytes, source="manual upload"):
             # segments outside transaction (rare) => ignore for now
             pass
 
-        return edi_file_dict
+    return edi_file_dict
 
 def main():
     # default to your sample file
