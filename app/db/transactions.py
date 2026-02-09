@@ -53,6 +53,6 @@ def get_transactions(file_id, transaction_set_id, ack_status):
 
     with connect() as conn:
         cur = conn.cursor()
-        rows = cur.execute(sql, params).fetchall()
+        rows = cur.execute(sql).fetchall()
 
     return [dict(r) for r in rows]
