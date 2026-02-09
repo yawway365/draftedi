@@ -1,4 +1,3 @@
-import sqlite3
 from app.db.conn import connect
 
 def create_edi_file(file_dict):
@@ -110,7 +109,6 @@ def create_functional_group(group_dict):
         conn.commit()
 
     return group_dict
-
 
 def create_transaction(tx_dict):
     fields = (
@@ -224,183 +222,6 @@ def create_component(component_dict):
 
     return component_dict
 
-
-def lookup_trading_partner_and_interchange(isa_sender_id, isa_receiver_id, sender_qual, receiver_qual, gs_sender_id, gs_receiver_id):
-    """
-    Best-effort mapping to your configured interchanges in trading_partners.db.
-
-    Matches on:
-      interchanges.isa_sender_id == ISA06 and interchanges.isa_receiver_id == ISA08
-
-    Returns: (partner_id, interchange_id) or (None, None)
-    """
-    def _clean(v):
-        return (v or "").strip()
-    
-    isa_sender_id   = _clean(isa_sender_id)
-    isa_receiver_id = _clean(isa_receiver_id)
-    sender_qual     = _clean(sender_qual)
-    receiver_qual   = _clean(receiver_qual)
-    gs_sender_id    = _clean(gs_sender_id)
-    gs_receiver_id  = _clean(gs_receiver_id)
-
-    try:
-        with connect() as conn:
-            cursor = conn.cursor()
-
-            sql = """
-                SELECT
-                    i.interchange_id,
-                    i.interchange_partner_id AS partner_id
-                FROM interchanges i
-                WHERE i.isa_sender_id = ?
-                AND i.isa_receiver_id = ?
-                AND i.isa_sender_qualifier = ?
-                AND i.isa_receiver_qualifier = ?
-                AND i.gs_sender_id = ?
-                AND i.gs_receiver_id = ?
-                LIMIT 1
-                """
-            
-
-            cursor.execute(
-                sql,
-                (isa_sender_id, isa_receiver_id, sender_qual, receiver_qual, gs_sender_id, gs_receiver_id),
-            )
-
-            row = cursor.fetchone()
-
-            print(row)
-
-            if not row:
-                return None, None
-
-        return int(row["partner_id"]), int(row["interchange_id"])
-    except Exception as e:
-        print(e)
-        return None, None
-
-def insert_segment_with_elements(
-    transaction_id: int,
-    position: int,
-    segment_id: str,
-    raw_segment: str,
-    element_values,
-    component_sep=None,
-    repetition_sep=None,
-    loop_path=None,
-):
-    """
-    Insert into edi_segments, edi_elements, edi_components.
-
-    - element_values is the list after the segment id: e.g. for "BEG*00*SA*..."
-    - repetitions: split by repetition_sep => multiple edi_elements rows with same element_pos,
-      different repetition_index (1..n)
-    - composites: split by component_sep => insert element is_composite=1 + components rows
-    """
-    with connect() as conn:
-        cur = conn.cursor()
-
-        # insert segment row
-        cur.execute(
-            """
-            INSERT INTO edi_segments
-                (transaction_id, position, segment_id, loop_path, raw_segment)
-            VALUES
-                (?, ?, ?, ?, ?)
-            """,
-            (transaction_id, position, segment_id, loop_path, raw_segment),
-        )
-        segment_row_id = cur.lastrowid
-
-        # elements are 1-based position
-        for element_pos, val in enumerate(element_values, start=1):
-            # val can be "" (blank) and is still "present"
-            if val is None:
-                val = ""
-
-            reps = [val]
-            if repetition_sep and repetition_sep in val:
-                reps = val.split(repetition_sep)
-
-            for rep_index, rep_val in enumerate(reps, start=1):
-                # composite?
-                if component_sep and component_sep in rep_val:
-                    cur.execute(
-                        """
-                        INSERT INTO edi_elements
-                            (segment_row_id, element_pos, is_composite, value_text, present, repetition_index)
-                        VALUES
-                            (?, ?, 1, NULL, 1, ?)
-                        """,
-                        (segment_row_id, element_pos, rep_index),
-                    )
-                    element_row_id = cur.lastrowid
-
-                    components = rep_val.split(component_sep)
-                    for component_pos, cval in enumerate(components, start=1):
-                        cur.execute(
-                            """
-                            INSERT INTO edi_components
-                                (element_row_id, component_pos, value_text)
-                            VALUES
-                                (?, ?, ?)
-                            """,
-                            (element_row_id, component_pos, cval),
-                        )
-                else:
-                    cur.execute(
-                        """
-                        INSERT INTO edi_elements
-                            (segment_row_id, element_pos, is_composite, value_text, present, repetition_index)
-                        VALUES
-                            (?, ?, 0, ?, 1, ?)
-                        """,
-                        (segment_row_id, element_pos, rep_val, rep_index),
-                    )
-
-    return segment_row_id
-
-def update_transaction_se_fields(transaction_id: int, segment_count_reported, raw_se_segment: str):
-    """
-    Your db.edi_data module doesn't have an update_transaction helper, so we do a small direct update.
-    """
-    with connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            UPDATE edi_transactions
-            SET
-                segment_count_reported = ?,
-                raw_se_segment = ?
-            WHERE transaction_id = ?
-            """,
-            (segment_count_reported, raw_se_segment, transaction_id),
-        )
-        conn.commit()
-
-def update_edi_file_status(file_id, parse_status=None, parse_error=None, processing_state=None):
-    fields = (
-        parse_status,
-        parse_error,
-        processing_state,
-        file_id,
-    )
-
-    with connect() as conn:
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            UPDATE edi_files
-            SET
-                parse_status = COALESCE(?, parse_status),
-                parse_error = COALESCE(?, parse_error),
-                processing_state = COALESCE(?, processing_state)
-            WHERE file_id = ?
-        """, fields)
-
-        conn.commit()
-
 def ingest_edi_file(edi_file):
 
     def ingest_segment(segment):
@@ -456,3 +277,55 @@ def ingest_edi_file(edi_file):
         segment_dict = ingest_segment(segment_dict)
 
     return edi_file
+
+
+def lookup_trading_partner_and_interchange(isa_sender_id, isa_receiver_id, sender_qual, receiver_qual, gs_sender_id, gs_receiver_id):
+    """
+    Best-effort mapping to your configured interchanges in trading_partners.db.
+
+    Matches on:
+      interchanges.isa_sender_id == ISA06 and interchanges.isa_receiver_id == ISA08
+
+    Returns: (partner_id, interchange_id) or (None, None)
+    """
+    def _clean(v):
+        return (v or "").strip()
+    
+    isa_sender_id   = _clean(isa_sender_id)
+    isa_receiver_id = _clean(isa_receiver_id)
+    sender_qual     = _clean(sender_qual)
+    receiver_qual   = _clean(receiver_qual)
+    gs_sender_id    = _clean(gs_sender_id)
+    gs_receiver_id  = _clean(gs_receiver_id)
+
+    with connect() as conn:
+        cursor = conn.cursor()
+
+        sql = """
+            SELECT
+                i.interchange_id,
+                i.interchange_partner_id AS partner_id
+            FROM interchanges i
+            WHERE i.isa_sender_id = ?
+            AND i.isa_receiver_id = ?
+            AND i.isa_sender_qualifier = ?
+            AND i.isa_receiver_qualifier = ?
+            AND i.gs_sender_id = ?
+            AND i.gs_receiver_id = ?
+            LIMIT 1
+            """
+        
+
+        cursor.execute(
+            sql,
+            (isa_sender_id, isa_receiver_id, sender_qual, receiver_qual, gs_sender_id, gs_receiver_id),
+        )
+
+        row = cursor.fetchone()
+
+        print(row)
+
+        if not row:
+            return None, None
+
+    return int(row["partner_id"]), int(row["interchange_id"])
