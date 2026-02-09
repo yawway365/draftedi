@@ -48,3 +48,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     parse_x12(sys.argv[1])
+    # py scripts/parse_x12.py 'C:\Dev\simple_edi\sample.edi'
