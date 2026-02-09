@@ -1,7 +1,7 @@
 from app.db.conn import connect
 
 
-def get_transactions(limit, offset, file_id, transaction_set_id, ack_status):
+def get_transactions(file_id, transaction_set_id, ack_status):
     where = []
     params = []
 
@@ -50,8 +50,6 @@ def get_transactions(limit, offset, file_id, transaction_set_id, ack_status):
     ORDER BY t.transaction_id DESC
     LIMIT ? OFFSET ?;
     """
-
-    params.extend([limit, offset])
 
     with connect() as conn:
         cur = conn.cursor()
