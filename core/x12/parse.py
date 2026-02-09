@@ -15,6 +15,7 @@ TRADING_PARTNERS_DB = "trading_partners.db"
 def parse_interchange(x12_text: str):
     """
     Detect element/component/repetition separators + segment terminator from the ISA header.
+    Kind of have to do this first to be able to parse any other segmet. It's consistently 106 chars and that should never change
 
     - element_sep is the 4th character (after "ISA")
     - segment terminator is typically the char right before the next "GS{element_sep}" token
@@ -25,20 +26,17 @@ def parse_interchange(x12_text: str):
 
     if len(x12_text) < 106:
         raise ValueError("File does not contain a full ISA segment")
-    
-    # Im redoing this so that it reads and uses everything in the ISA segment
+
     # ISA*00*          *00*          *ZZ*SENDER         *ZZ*RECEIVER       *231117*0041*^*00403*000000001*0*T*>~
     element_sep = x12_text[3]
     segment_term = x12_text[105]
     raw_isa = x12_text[0:106]
     isa_parts = raw_isa.split(element_sep)
-    # gs_end = x12_text[106:].find(segment_term)
-    # gs_parts = x12_text[106:106+gs_end].strip().split(element_sep)
-    
+
     # ISA has 16 elements (plus 'ISA' tag at index 0 => total len 17)
     # If shorter, still attempt best-effort
     repetition_sep = isa_parts[11] if len(isa_parts) > 11 else None  # ISA11 (5010 repetition separator)
-    component_sep = isa_parts[16] if len(isa_parts) > 16 else None   # ISA16
+    component_sep = isa_parts[16][0] if len(isa_parts) > 16 else None   # ISA16
 
     # normalize blanks
     repetition_sep = repetition_sep if repetition_sep else None
@@ -51,7 +49,6 @@ def parse_interchange(x12_text: str):
         "component_sep": component_sep,
         "raw_isa": raw_isa,
         "isa_parts": isa_parts,
-        # "gs_parts": gs_parts,
     }
 
 

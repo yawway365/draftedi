@@ -317,3 +317,4 @@ def update_edi_file_status(file_id, parse_status=None, parse_error=None, process
         """, fields)
 
         conn.commit()
+
