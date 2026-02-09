@@ -17,6 +17,7 @@ def view_transactions():
     url = f"{BASE_URL}/api/transactions"
     headers = {
         "x-api-key": API_KEY,
+        'file_id': '1'
     }
 
     response = requests.get(url, headers=headers, timeout=30)

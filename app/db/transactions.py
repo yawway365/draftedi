@@ -50,8 +50,9 @@ def get_transactions(file_id, transaction_set_id, ack_status):
     ORDER BY t.transaction_id DESC;
     """
 
+
     with connect() as conn:
         cur = conn.cursor()
-        rows = cur.execute(sql).fetchall()
+        rows = cur.execute(sql, params).fetchall()
 
     return [dict(r) for r in rows]
