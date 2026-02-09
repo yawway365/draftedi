@@ -70,6 +70,8 @@ def parse_edi_file(raw_bytes, source="manual upload"):
 
     processed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
+    db_records = {}
+
     # create edi_files row first
     edi_file_dict = {
         "partner_id": None,
@@ -83,217 +85,214 @@ def parse_edi_file(raw_bytes, source="manual upload"):
         "processing_state": "new",
         "source": source,
     }
-    file_row = create_edi_file(
-        edi_file_dict
-    )
-    file_id = file_row["file_id"]
+    db_records['edi_file_dict'] = edi_file_dict
+    
 
-    try:
-        sep = parse_interchange(x12_text)
-        element_sep = sep["element_sep"]
-        segment_term = sep["segment_term"]
-        repetition_sep = sep["repetition_sep"]
-        component_sep = sep["component_sep"]
-        isa_parts = sep["isa_parts"]
-        raw_isa = sep["raw_isa"]
+    sep = parse_interchange(x12_text)
+    element_sep = sep["element_sep"]
+    segment_term = sep["segment_term"]
+    repetition_sep = sep["repetition_sep"]
+    component_sep = sep["component_sep"]
+    isa_parts = sep["isa_parts"]
+    raw_isa = sep["raw_isa"]
 
-        # Parse ISA fields (index names based on standard positions)
-        # NOTE: after split: ['ISA', ISA01, ISA02, ..., ISA16]
-        isa_sender_qual = isa_parts[5] if len(isa_parts) > 5 else None
-        isa_sender_id = isa_parts[6] if len(isa_parts) > 6 else None
-        isa_receiver_qual = isa_parts[7] if len(isa_parts) > 7 else None
-        isa_receiver_id = isa_parts[8] if len(isa_parts) > 8 else None
-        isa_date = isa_parts[9] if len(isa_parts) > 9 else None
-        isa_time = isa_parts[10] if len(isa_parts) > 10 else None
-        isa_control = isa_parts[13] if len(isa_parts) > 13 else None
-        usage_indicator = isa_parts[15] if len(isa_parts) > 15 else None
-        version = isa_parts[12] if len(isa_parts) > 12 else None
+    # Parse ISA fields (index names based on standard positions)
+    # NOTE: after split: ['ISA', ISA01, ISA02, ..., ISA16]
+    isa_sender_qual = isa_parts[5] if len(isa_parts) > 5 else None
+    isa_sender_id = isa_parts[6] if len(isa_parts) > 6 else None
+    isa_receiver_qual = isa_parts[7] if len(isa_parts) > 7 else None
+    isa_receiver_id = isa_parts[8] if len(isa_parts) > 8 else None
+    isa_date = isa_parts[9] if len(isa_parts) > 9 else None
+    isa_time = isa_parts[10] if len(isa_parts) > 10 else None
+    isa_control = isa_parts[13] if len(isa_parts) > 13 else None
+    usage_indicator = isa_parts[15] if len(isa_parts) > 15 else None
+    version = isa_parts[12] if len(isa_parts) > 12 else None
+    
+    # Split into segments (trim whitespace/newlines around segments)
+    segments = [s.strip() for s in x12_text.split(segment_term)]
+    segments = [s for s in segments if s]  # drop empties
+
+    current_group_id = None
+    current_tx_id = None
+    current_tx_pos = 0
+
+    db_records['segments'] = []
+
+    for seg in segments:
+        parts = seg.split(element_sep)
+        seg_id = parts[0].strip() if parts else ""
+        seg_elements = parts[1:] if len(parts) > 1 else []
+
+        if seg_id == "ISA":
+            # already handled above, but you could store it in segments if desired
+            continue
+
+        if seg_id == "GS":
+            # GS*PO*SENDERGS*RECEIVERGS*20231117*004114*000000001*X*004030
+            functional_id_code = seg_elements[0] if len(seg_elements) > 0 else None
+            gs_sender_id = seg_elements[1] if len(seg_elements) > 1 else None
+            gs_receiver_id = seg_elements[2] if len(seg_elements) > 2 else None
+            group_control_number = seg_elements[5] if len(seg_elements) > 5 else None
+            x12_release = seg_elements[7] if len(seg_elements) > 7 else None
+
+            interchange_dict = {
+                "file_id": None,
+                "partner_id": None,
+                "interchange_id": None,
+                "isa_control_number": isa_control,
+                "isa_sender_qualifier": isa_sender_qual,
+                "isa_sender_id": isa_sender_id,
+                "isa_receiver_qualifier": isa_receiver_qual,
+                "isa_receiver_id": isa_receiver_id,
+                "isa_date": isa_date,
+                "isa_time": isa_time,
+                "usage_indicator": usage_indicator,
+                "version": version,
+                "element_sep": element_sep,
+                "component_sep": component_sep,
+                "segment_term": segment_term,
+                "repetition_sep": repetition_sep,
+                "raw_isa": raw_isa,
+            }
+            db_records['interchange_dict'] = interchange_dict
+
+            group_dict = {
+                "edi_interchange_id": None,
+                "functional_id_code": functional_id_code,
+                "gs_sender_id": gs_sender_id,
+                "gs_receiver_id": gs_receiver_id,
+                "group_control_number": group_control_number,
+                "x12_release": x12_release,
+                "raw_gs_segment": seg,
+            }
+            db_records['group_dict'] = group_dict
+
+            continue
+
+        if seg_id == "ST":
+            # ST*850*01403001*...
+            if current_group_id is None:
+                raise ValueError("Encountered ST before GS")
+
+            transaction_set_id = seg_elements[0] if len(seg_elements) > 0 else None
+            control_number = seg_elements[1] if len(seg_elements) > 1 else None
+            impl_version = seg_elements[2] if len(seg_elements) > 2 else None
+            
+            transaction_dict = {
+                "group_id": current_group_id,
+                "transaction_set_id": transaction_set_id,
+                "control_number": control_number,
+                "implementation_version": impl_version,
+                "segment_count_reported": None,
+                "raw_st_segment": seg,
+                "raw_se_segment": None,
+                "ack_status": "none",
+            }
+            db_records['transaction_dict'] = transaction_dict
+
+            current_tx_pos = 0
+
+            # also store the ST segment itself in edi_segments/edi_elements
+            current_tx_pos += 1
+                
+            continue
+
+        if seg_id == "SE":
+            # SE*21*01403001
+            if current_tx_id is None:
+                raise ValueError("Encountered SE but no active transaction")
+
+            seg_count = None
+            if len(seg_elements) > 0 and seg_elements[0].isdigit():
+                seg_count = int(seg_elements[0])
+
+            # store SE segment into segment table
+            current_tx_pos += 1
+            insert_segment_with_elements(
+                transaction_id=current_tx_id,
+                position=current_tx_pos,
+                segment_id=seg_id,
+                raw_segment=seg,
+                element_values=seg_elements,
+                component_sep=component_sep,
+                repetition_sep=repetition_sep,
+            )
+
+            # update transaction with SE info
+            update_transaction_se_fields(current_tx_id, seg_count, seg)
+
+            # close tx
+            current_tx_id = None
+            current_tx_pos = 0
+            continue
+
+        if seg_id == "GE":
+            current_group_id = None
+            continue
+
+        if seg_id == "IEA":
+            # done with interchange
+            continue
+
         
-        # Split into segments (trim whitespace/newlines around segments)
-        segments = [s.strip() for s in x12_text.split(segment_term)]
-        segments = [s for s in segments if s]  # drop empties
+        # Normal business segments: only store if inside a transaction
+        if current_tx_id is not None:
+            current_tx_pos += 1
 
-        current_group_id = None
-        current_tx_id = None
-        current_tx_pos = 0
+            segment_dict = {
+                'transaction_id': current_tx_id,
+                'position': current_tx_pos,
+                'segment_id': seg_id,
+                'loop_path': None,
+                'raw_segment': seg,
+                'elements': []
+            }
 
-        # We want to store raw ST/SE on transaction record
-        pending_tx = None  # dict with group_id/raw_st fields until we have transaction_id
+            for element_pos, val in enumerate(seg_elements, start=1):
+                # val can be "" (blank) and is still "present"
+                if val is None:
+                    val = ""
+                
+                reps = [val]
+                if repetition_sep and repetition_sep in val:
+                    reps = val.split(repetition_sep)
 
-        for seg in segments:
-            parts = seg.split(element_sep)
-            seg_id = parts[0].strip() if parts else ""
-            seg_elements = parts[1:] if len(parts) > 1 else []
+                element_dict = {
+                    'element_pos': element_pos,
+                    'is_composite': None,
+                    'value_text': None,
+                    'present': 1,
+                    'repetition_index': None,
+                    'components': [],
+                }
 
-            if seg_id == "ISA":
-                # already handled above, but you could store it in segments if desired
-                continue
+                for rep_index, rep_val in enumerate(reps, start=1):
+                    element_dict['repetition_index'] = rep_index
 
-            if seg_id == "GS":
-                # GS*PO*SENDERGS*RECEIVERGS*20231117*004114*000000001*X*004030
-                functional_id_code = seg_elements[0] if len(seg_elements) > 0 else None
-                gs_sender_id = seg_elements[1] if len(seg_elements) > 1 else None
-                gs_receiver_id = seg_elements[2] if len(seg_elements) > 2 else None
-                group_control_number = seg_elements[5] if len(seg_elements) > 5 else None
-                x12_release = seg_elements[7] if len(seg_elements) > 7 else None
+                    if component_sep and component_sep in rep_val:
+                        element_dict['is_composite'] = 1
+                        
+                        components = rep_val.split(component_sep)
+                        for component_pos, cval in enumerate(components, start=1):
+                            component_dict = {
+                                'component_pos': component_pos,
+                                'value_text': cval
+                            }
+                            element_dict['components'].append(component_dict)
+                        
+                        segment_dict['elements'].append(element_dict)
 
-                # attempt to map to your configured partner/interchange
-                partner_id, interchange_id = lookup_trading_partner_and_interchange(
-                    isa_sender_id=isa_sender_id,
-                    isa_receiver_id=isa_receiver_id,
-                    sender_qual=isa_sender_qual,
-                    receiver_qual=isa_receiver_qual,
-                    gs_sender_id=gs_sender_id,
-                    gs_receiver_id=gs_receiver_id
-                )
+                    else:
+                        element_dict['is_composite'] = 0
+                        element_dict['value_text'] = rep_val
+                        segment_dict['elements'].append(element_dict)
 
-                # create interchange
-                interchange_row = create_edi_interchange(
-                    {
-                        "file_id": file_id,
-                        "partner_id": partner_id,
-                        "interchange_id": interchange_id,
-                        "isa_control_number": isa_control,
-                        "isa_sender_qualifier": isa_sender_qual,
-                        "isa_sender_id": isa_sender_id,
-                        "isa_receiver_qualifier": isa_receiver_qual,
-                        "isa_receiver_id": isa_receiver_id,
-                        "isa_date": isa_date,
-                        "isa_time": isa_time,
-                        "usage_indicator": usage_indicator,
-                        "version": version,
-                        "element_sep": element_sep,
-                        "component_sep": component_sep,
-                        "segment_term": segment_term,
-                        "repetition_sep": repetition_sep,
-                        "raw_isa": raw_isa,
-                    }
-                )
-                edi_interchange_id = interchange_row["edi_interchange_id"]
-
-                group_row = create_functional_group(
-                    {
-                        "edi_interchange_id": edi_interchange_id,
-                        "functional_id_code": functional_id_code,
-                        "gs_sender_id": gs_sender_id,
-                        "gs_receiver_id": gs_receiver_id,
-                        "group_control_number": group_control_number,
-                        "x12_release": x12_release,
-                        "raw_gs_segment": seg,
-                    }
-                )
-                current_group_id = group_row["group_id"]
-                continue
-
-            if seg_id == "ST":
-                # ST*850*01403001*...
-                if current_group_id is None:
-                    raise ValueError("Encountered ST before GS")
-
-                transaction_set_id = seg_elements[0] if len(seg_elements) > 0 else None
-                control_number = seg_elements[1] if len(seg_elements) > 1 else None
-                impl_version = seg_elements[2] if len(seg_elements) > 2 else None
-
-                tx_row = create_transaction(
-                    {
-                        "group_id": current_group_id,
-                        "transaction_set_id": transaction_set_id,
-                        "control_number": control_number,
-                        "implementation_version": impl_version,
-                        "segment_count_reported": None,
-                        "raw_st_segment": seg,
-                        "raw_se_segment": None,
-                        "ack_status": "none",
-                    }
-                )
-                current_tx_id = tx_row["transaction_id"]
-                current_tx_pos = 0
-
-                # also store the ST segment itself in edi_segments/edi_elements
-                current_tx_pos += 1
-                seg_row_id = insert_segment_with_elements(
-                    transaction_id=current_tx_id,
-                    position=current_tx_pos,
-                    segment_id=seg_id,
-                    raw_segment=seg,
-                    element_values=seg_elements,
-                    component_sep=component_sep,
-                    repetition_sep=repetition_sep,
-                )
-                continue
-
-            if seg_id == "SE":
-                # SE*21*01403001
-                if current_tx_id is None:
-                    raise ValueError("Encountered SE but no active transaction")
-
-                seg_count = None
-                if len(seg_elements) > 0 and seg_elements[0].isdigit():
-                    seg_count = int(seg_elements[0])
-
-                # store SE segment into segment table
-                current_tx_pos += 1
-                insert_segment_with_elements(
-                    transaction_id=current_tx_id,
-                    position=current_tx_pos,
-                    segment_id=seg_id,
-                    raw_segment=seg,
-                    element_values=seg_elements,
-                    component_sep=component_sep,
-                    repetition_sep=repetition_sep,
-                )
-
-                # update transaction with SE info
-                update_transaction_se_fields(current_tx_id, seg_count, seg)
-
-                # close tx
-                current_tx_id = None
-                current_tx_pos = 0
-                continue
-
-            if seg_id == "GE":
-                current_group_id = None
-                continue
-
-            if seg_id == "IEA":
-                # done with interchange
-                continue
-
-            # Normal business segments: only store if inside a transaction
-            if current_tx_id is not None:
-                current_tx_pos += 1
-                insert_segment_with_elements(
-                    transaction_id=current_tx_id,
-                    position=current_tx_pos,
-                    segment_id=seg_id,
-                    raw_segment=seg,
-                    element_values=seg_elements,
-                    component_sep=component_sep,
-                    repetition_sep=repetition_sep,
-                )
-            else:
-                # segments outside transaction (rare) => ignore for now
-                pass
-
-        # mark success
-        update_edi_file_status(
-            file_id,
-            parse_status="ok",
-            parse_error=None,
-            processing_state="parsed",
-        )
+            db_records['segments'].append(segment_dict)
+        else:
+            # segments outside transaction (rare) => ignore for now
+            pass
 
         return edi_file_dict
-
-    except Exception as e:
-        update_edi_file_status(
-            file_id,
-            parse_status="error",
-            parse_error=str(e),
-            processing_state="error",
-        )
-        raise
-
 
 def main():
     # default to your sample file

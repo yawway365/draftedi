@@ -142,6 +142,89 @@ def create_transaction(tx_dict):
 
     return tx_dict
 
+def create_segment(segment_dict):
+    fields = (
+        segment_dict.get("transaction_id"),
+        segment_dict.get("position"),
+        segment_dict.get("segment_id"),
+        segment_dict.get("loop_path"),
+        segment_dict.get("raw_segment"),
+    )
+
+    with connect() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO edi_segments
+                (transaction_id, position, segment_id, loop_path, raw_segment)
+            VALUES
+                (?, ?, ?, ?, ?)
+            """, fields
+        )
+
+        segment_id = cursor.lastrowid
+        segment_dict["segment_row_id"] = segment_id
+
+        conn.commit()
+
+    return segment_dict
+
+def create_element(element_dict):
+    fields = (
+        element_dict.get("segment_row_id"),
+        element_dict.get("element_pos"),
+        element_dict.get("is_composite"),
+        element_dict.get("value_text"),
+        element_dict.get("present"),
+        element_dict.get("repetition_index"),
+    )
+
+    with connect() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO edi_elements
+                (segment_row_id, element_pos, is_composite, value_text, present, repetition_index)
+            VALUES
+                (?, ?, ?, ?, ?, ?)
+            """,
+            fields,
+        )
+
+        element_id = cursor.lastrowid
+        element_dict["element_row_id"] = element_id
+
+        conn.commit()
+
+    return element_dict
+
+def create_component(component_dict):
+    fields = (
+        component_dict.get("element_row_id"),
+        component_dict.get("componennt_pos"),
+        component_dict.get("value_text"),
+    )
+
+    with connect() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO edi_components
+                (element_row_id, component_pos, value_text)
+            VALUES
+                (?, ?, ?)
+            """,
+            fields,
+        )
+
+        conn.commit()
+
+    return component_dict
+
+
 def lookup_trading_partner_and_interchange(isa_sender_id, isa_receiver_id, sender_qual, receiver_qual, gs_sender_id, gs_receiver_id):
     """
     Best-effort mapping to your configured interchanges in trading_partners.db.
@@ -318,3 +401,58 @@ def update_edi_file_status(file_id, parse_status=None, parse_error=None, process
 
         conn.commit()
 
+def ingest_edi_file(edi_file):
+
+    def ingest_segment(segment):
+        segment = create_segment(segment)
+
+        for element in segment.get('elements', []):
+            element['segment_row_id'] = segment.get('segment_row_id', None)
+            element = create_element(element)
+
+            for component in element.get('components', []):
+                component['element_row_id'] = element.get('element_row_id', None)
+                create_component(component)
+
+        return segment
+
+    edi_file_dict = edi_file.get('edi_file_dict', None)
+    interchange_dict = edi_file.get('interchange_dict', None)
+    group_dict = edi_file.get('group_dict', None)
+    transaction_dict = edi_file.get('transaction_dict', None)
+    segments_list = edi_file.get('segments', None)
+
+    # attempt to map to your configured partner/interchange
+    partner_id, interchange_id = lookup_trading_partner_and_interchange(
+        isa_sender_id=interchange_dict.get('isa_sender_id', None),
+        isa_receiver_id=interchange_dict.get('isa_receiver_id', None),
+        sender_qual=interchange_dict.get('sender_qual', None),
+        receiver_qual=interchange_dict.get('receiver_qual', None),
+        gs_sender_id=group_dict.get('gs_sender_id', None),
+        gs_receiver_id=group_dict.get('gs_receiver_id', None),
+    )
+
+    # Re-assign database generated values, file_id, partner_id, interchange_id
+    edi_file['edi_file_dict']['partner_id'] = partner_id
+    edi_file['edi_file_dict']['interchange_id'] = interchange_id
+    # Create the file record
+    edi_file['edi_file_dict'] = create_edi_file(edi_file_dict)
+
+    edi_file['interchange_dict']['file_id'] = edi_file['edi_file_dict']['file_id']
+    edi_file['interchange_dict']['partner_id'] = partner_id
+    edi_file['interchange_dict']['interchange_id'] = interchange_id
+    # Create the interchange record
+    edi_file['interchange_dict'] = create_edi_interchange(interchange_dict)
+
+    # Re assign database generate value edi_interchange_id
+    edi_file['group_dict']['edi_interchange_id'] = edi_file['interchange_dict']['edi_interchange_id']
+    # Create the group record
+    edi_file['group_dict'] = create_functional_group(group_dict)
+
+    # Create the transaction record
+    edi_file['transaction_dict'] = create_transaction(transaction_dict)
+
+    for segment_dict in segments_list:
+        segment_dict = ingest_segment(segment_dict)
+
+    return edi_file
