@@ -1,5 +1,5 @@
-from app.db.ingest import create_edi_file, create_edi_interchange, create_functional_group, create_transaction, create_segment, create_element, create_component
-from app.db.trading_partners import lookup_trading_partner_and_interchange
+from app.db.x12 import create_edi_file, create_edi_interchange, create_functional_group, create_transaction, create_segment, create_element, create_component
+from app.db.partners import lookup_trading_partner_and_interchange
 
 def ingest_edi_file(edi_file):
 
