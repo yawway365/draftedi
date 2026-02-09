@@ -47,8 +47,7 @@ def get_transactions(file_id, transaction_set_id, ack_status):
     JOIN edi_interchanges i ON i.edi_interchange_id = g.edi_interchange_id
     JOIN edi_files f ON f.file_id = i.file_id
     {where_sql}
-    ORDER BY t.transaction_id DESC
-    LIMIT ? OFFSET ?;
+    ORDER BY t.transaction_id DESC;
     """
 
     with connect() as conn:
