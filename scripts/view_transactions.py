@@ -19,7 +19,7 @@ def view_transactions():
         "x-api-key": API_KEY,
     }
 
-    response = requests.post(url, headers=headers, timeout=30)
+    response = requests.get(url, headers=headers, timeout=30)
 
     print(f"HTTP {response.status_code}")
 
