@@ -194,10 +194,8 @@ def parse_edi_file(raw_bytes, source="manual upload"):
             current_tx_pos += 1
 
             # update transaction with SE info
-            db_records['transaction_dict'] = {
-                "segment_count_reported": seg_count,
-                "raw_se_segment": seg,
-            }
+            db_records['transaction_dict']['segment_count_reported'] = seg_count
+            db_records['transaction_dict']['raw_se_segment'] = seg
 
             # close tx
             current_tx_id = None
