@@ -135,6 +135,8 @@ def parse_edi_file(raw_bytes, source="manual upload"):
             group_control_number = seg_elements[5] if len(seg_elements) > 5 else None
             x12_release = seg_elements[7] if len(seg_elements) > 7 else None
 
+            current_group_id = functional_id_code
+
             interchange_dict = {
                 "file_id": None,
                 "partner_id": None,
