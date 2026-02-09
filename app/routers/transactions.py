@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, UploadFile, File, HTTPException, Request
 
-from db.transactions import get_transactions
+from app.db.transactions import get_transactions
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 @router.get("",)
