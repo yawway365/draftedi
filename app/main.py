@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Header, HTTPException, Response, status, Depends
 
 from app.routers.x12 import router as x12_router
+from app.routers.transactions import router as transactions_router
 from app.db.schema import create_tables
 
 load_dotenv()
@@ -81,6 +82,7 @@ def metrics():
 # ---- Protected router (everything in here requires x-api-key) ----
 protected = APIRouter(prefix="/api", dependencies=[Depends(require_api_key)])
 protected.include_router(x12_router)
+protected.include_router(transactions_router)
 
 @protected.get("/ping")
 def ping():
