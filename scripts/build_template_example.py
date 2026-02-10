@@ -1,70 +1,89 @@
 """
-Test script to demonstrate building transaction set mapping templates.
+Client script to fetch transaction set templates via API.
 
 Usage:
-    python scripts/build_template_example.py 004010 810
+    python scripts/fetch_template_from_api.py 004010 810
+    python scripts/fetch_template_from_api.py 004010 810 --mandatory-only
 """
 
 import sys
 import json
+import requests
 from pathlib import Path
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
-# Add parent directory to path so we can import app modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
+BASE_URL = os.getenv("DRAFTEDI_BASE_URL")
+API_KEY = os.getenv("API_KEY")
 
-from app.services.build_mapping_template import (
-    build_mapping_template,
-    build_mandatory_only_template
-)
+if not BASE_URL or not API_KEY:
+    raise RuntimeError("Missing DRAFTEDI_BASE_URL or API_KEY in .env")
+
+
+def fetch_template(version: str, transaction_set_id: str, mandatory_only: bool = False):
+    """Fetch template from the API"""
+    url = f"{BASE_URL}/api/transaction-sets/{version}/{transaction_set_id}/template"
+    
+    headers = {
+        "x-api-key": API_KEY,
+    }
+    
+    params = {
+        "mandatory_only": mandatory_only
+    }
+    
+    response = requests.get(url, headers=headers, params=params, timeout=30)
+    
+    if response.status_code != 200:
+        print(f"Error: HTTP {response.status_code}")
+        print(response.text)
+        sys.exit(1)
+    
+    return response.json()
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python build_template_example.py <version> <transaction_set_id>")
-        print("Example: python build_template_example.py 004010 810")
+    if len(sys.argv) < 3:
+        print("Usage: python fetch_template_from_api.py <version> <transaction_set_id> [--mandatory-only]")
+        print("Example: python fetch_template_from_api.py 004010 810")
+        print("Example: python fetch_template_from_api.py 004010 810 --mandatory-only")
         sys.exit(1)
     
     version = sys.argv[1]
     transaction_set_id = sys.argv[2]
+    mandatory_only = "--mandatory-only" in sys.argv
     
-    print(f"Building template for {transaction_set_id} (version {version})...\n")
+    print(f"Fetching template for {transaction_set_id} (version {version})...")
+    if mandatory_only:
+        print("(Mandatory fields only)")
+    print()
     
-    # Build full template
+    # Fetch from API
+    result = fetch_template(version, transaction_set_id, mandatory_only)
+    template = result.get("template")
+    
+    # Display
     print("=" * 60)
-    print("FULL TEMPLATE (all segments and elements)")
+    print(f"TEMPLATE for {transaction_set_id}")
     print("=" * 60)
-    full_template = build_mapping_template(version, transaction_set_id)
-    print(json.dumps(full_template, indent=2))
+    print(json.dumps(template, indent=2))
     
-    print("\n\n")
-    
-    # Build mandatory-only template
-    print("=" * 60)
-    print("MANDATORY ONLY TEMPLATE (minimal required fields)")
-    print("=" * 60)
-    mandatory_template = build_mandatory_only_template(version, transaction_set_id)
-    print(json.dumps(mandatory_template, indent=2))
-    
-    # Save to files
+    # Save to file
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
     
-    full_path = output_dir / f"{transaction_set_id}_full_template.json"
-    mandatory_path = output_dir / f"{transaction_set_id}_mandatory_template.json"
+    suffix = "_mandatory" if mandatory_only else "_full"
+    output_path = output_dir / f"{transaction_set_id}{suffix}_template.json"
     
-    with open(full_path, "w") as f:
-        json.dump(full_template, f, indent=2)
+    with open(output_path, "w") as f:
+        json.dump(template, f, indent=2)
     
-    with open(mandatory_path, "w") as f:
-        json.dump(mandatory_template, f, indent=2)
-    
-    print(f"\n\nTemplates saved to:")
-    print(f"  - {full_path}")
-    print(f"  - {mandatory_path}")
+    print(f"\n\nTemplate saved to: {output_path}")
 
 
 if __name__ == "__main__":
     main()
+
+
