@@ -165,26 +165,27 @@ def create_tables() -> None:
     );
     """)
 
+    # Mapping for a transaction set to a template
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS edi_drafts (
-        draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        partner_id INTEGER,
-        interchange_id INTEGER,
-        direction TEXT,
-        environment TEXT,
-        x12_version TEXT,
-        transaction_set_id TEXT,
-        name TEXT,
-        status TEXT NOT NULL DEFAULT 'draft',
-        payload_json TEXT NOT NULL,
-        notes TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(partner_id) REFERENCES trading_partners(partner_id),
-        FOREIGN KEY(interchange_id) REFERENCES interchanges(interchange_id)
-    );
+        CREATE TABLE IF NOT EXISTS transaction_set_mappings (
+            mapping_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            interchange_set_id INTEGER NOT NULL,
+            mapping_name TEXT,
+            mapping_version TEXT DEFAULT '1.0',
+            
+            template_json TEXT NOT NULL, -- store template as json
+            
+            -- Optional: store sample input/output for testing
+            sample_input_json TEXT,
+            sample_output_edi TEXT,
+            
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            
+            FOREIGN KEY(interchange_set_id) REFERENCES interchange_sets(interchange_set_id)
+        );
     """)
-
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_edi_files_hash ON edi_files(file_hash);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_edi_segments_tx_pos ON edi_segments(transaction_id, position);")
