@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.db.transactions import get_transactions
+from app.db.ingested_transactions import get_transactions
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 @router.get("",)
