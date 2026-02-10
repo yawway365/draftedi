@@ -18,7 +18,7 @@ def connect() -> sqlite3.Connection:
     return conn
 
 def connect_edi(version: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(f'{get_edi_db_path()}\\x12-{version}.db', timeout=30)
+    conn = sqlite3.connect(os.path.join(get_edi_db_path(), f'x12-{version}.db'), timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
