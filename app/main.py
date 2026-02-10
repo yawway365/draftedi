@@ -7,6 +7,8 @@ from fastapi import FastAPI, APIRouter, Header, HTTPException, Response, status,
 
 from app.routers.x12 import router as x12_router
 from app.routers.transactions import router as transactions_router
+from app.routers.mappings import router as mappings_router
+from app.routers.transaction_sets import router as transaction_sets_router
 from app.db.schema import create_tables
 
 load_dotenv()
@@ -83,6 +85,8 @@ def metrics():
 protected = APIRouter(prefix="/api", dependencies=[Depends(require_api_key)])
 protected.include_router(x12_router)
 protected.include_router(transactions_router)
+protected.include_router(mappings_router)
+protected.include_router(transaction_sets_router)
 
 @protected.get("/ping")
 def ping():
