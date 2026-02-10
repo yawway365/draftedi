@@ -268,7 +268,7 @@ def parse_edi_file(raw_bytes, source="manual upload"):
             # segments outside transaction (rare) => ignore for now
             pass
 
-    return edi_file_dict
+    return db_records
 
 def main():
     # default to your sample file
