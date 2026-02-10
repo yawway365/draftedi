@@ -5,6 +5,7 @@ def ingest_edi_file(edi_file):
 
     def ingest_segment(segment):
         segment = create_segment(segment)
+        segment['segment_row_id'] = segment.get('segment_row_id', None)
 
         for element in segment.get('elements', []):
             element['segment_row_id'] = segment.get('segment_row_id', None)
@@ -48,11 +49,14 @@ def ingest_edi_file(edi_file):
     edi_file['group_dict']['edi_interchange_id'] = edi_file['interchange_dict']['edi_interchange_id']
     # Create the group record
     edi_file['group_dict'] = create_functional_group(group_dict)
+    edi_file['transaction_dict']['group_id'] = edi_file['group_dict']['group_id']
 
     # Create the transaction record
     edi_file['transaction_dict'] = create_transaction(transaction_dict)
+    edi_file['transaction_dict']['group_id'] = edi_file['group_dict']['group_id']
 
     for segment_dict in segments_list:
+        segment_dict['transaction_id'] = edi_file['transaction_dict']['transaction_id']
         segment_dict = ingest_segment(segment_dict)
 
     return edi_file
