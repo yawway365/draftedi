@@ -1,6 +1,5 @@
 from app.db.conn import connect
 
-
 def get_transactions(file_id, transaction_set_id, ack_status):
     where = []
     params = []
