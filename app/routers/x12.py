@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 
 router = APIRouter(prefix="/x12", tags=["x12"])
