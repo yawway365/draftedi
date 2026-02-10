@@ -1,0 +1,45 @@
+{
+    "transaction_set": "997",
+    "segments": [
+        {
+            "segment_id": "AK1",
+            "elements": [
+                {
+                    "pos": 1,
+                    "path": "",
+                    "value": "PO"
+                },
+                {
+                    "pos": 2,
+                    "path": "",
+                    "value": "200001215"
+                }
+            ]
+        },
+        {
+            "segment_id": "AK9",
+            "elements": [
+                {
+                    "pos": 1,
+                    "path": "",
+                    "value": "A"
+                },
+                {
+                    "pos": 2,
+                    "path": "",
+                    "value": "10"
+                },
+                {
+                    "pos": 3,
+                    "path": "",
+                    "value": "10"
+                },
+                {
+                    "pos": 4,
+                    "path": "",
+                    "value": "10"
+                }
+            ]
+        }
+    ]
+}
