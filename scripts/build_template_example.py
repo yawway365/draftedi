@@ -8,6 +8,9 @@ Usage:
 import sys
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Add parent directory to path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
