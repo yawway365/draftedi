@@ -27,7 +27,7 @@ def fetch_template(version: str, transaction_set_id: str, mandatory_only: bool =
     url = f"{BASE_URL}/api/transaction-sets/{version}/{transaction_set_id}/template"
     
     headers = {
-        "x-api-key": API_KEY,
+        "x-api-key": API_KEY,  
     }
     
     params = {
