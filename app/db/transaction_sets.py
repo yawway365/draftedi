@@ -30,7 +30,7 @@ def get_transaction_set(version, transaction_set_id):
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT 
+            SELECT
                 transaction_set_id,
                 transaction_set_name,
                 transaction_set_functional_group_id,
@@ -41,15 +41,15 @@ def get_transaction_set(version, transaction_set_id):
             transaction_set_id,
         ))
 
-    row = dict(cursor.fetchone())
+        row = dict(cursor.fetchone())
 
-    transaction_segments = get_transaction_set_segments(cursor, version, transaction_set_id)
-    row['segments'] = transaction_segments
+        transaction_segments = get_transaction_set_segments(cursor, transaction_set_id)
+        row['segments'] = transaction_segments
 
-    return row if row else None
+        return row if row else None
 
 # conn needed before and passed through to avoid multiple connections and to support transactionality if needed in the future. You must use the same connection to ensure you are querying the same database state, especially if using WAL mode where readers can see committed changes from other connections but not uncommitted changes.    
-def get_transaction_set_segments(cursor, version, transaction_set_id):
+def get_transaction_set_segments(cursor, transaction_set_id):
     cursor.execute("""
         SELECT 
             transaction_set_segment_id,
@@ -100,8 +100,8 @@ def get_transaction_set_segments(cursor, version, transaction_set_id):
             continue
 
         row['segment_notes'] = get_transaction_set_segment_notes(cursor, transaction_set_segment_id)
-        row['segment_relational_conditions'] = get_transaction_set_relational_conditions(version, transaction_set_segment_id)
-        row['segment_elements'] = get_segment_elements(version, segment_id)
+        row['segment_relational_conditions'] = get_transaction_set_relational_conditions(cursor, transaction_set_segment_id)
+        row['segment_elements'] = get_segment_elements(cursor, segment_id)
         
         if loop_stack:
             #inside loop: attach to top loop
