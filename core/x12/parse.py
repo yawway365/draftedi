@@ -263,7 +263,7 @@ def parse_edi_file(raw_bytes, source="manual upload"):
                         element_dict['value_text'] = rep_val
                         segment_dict['elements'].append(element_dict)
 
-            db_records['segments'].append(segment_dict)
+            db_records['transaction_dict']['segments'].append(segment_dict)
         else:
             # segments outside transaction (rare) => ignore for now
             pass

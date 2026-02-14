@@ -201,7 +201,7 @@ def create_element(element_dict):
 def create_component(component_dict):
     fields = (
         component_dict.get("element_row_id"),
-        component_dict.get("componennt_pos"),
+        component_dict.get("component_pos"),
         component_dict.get("value_text"),
     )
 
