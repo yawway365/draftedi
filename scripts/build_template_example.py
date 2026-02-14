@@ -77,7 +77,7 @@ def main():
     suffix = "_mandatory" if mandatory_only else "_full"
     output_path = output_dir / f"{transaction_set_id}{suffix}_template.json"
     
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(template, f, indent=2)
     
     print(f"\n\nTemplate saved to: {output_path}")
